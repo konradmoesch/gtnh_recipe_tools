@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fmt;
 use std::fmt::{Display, Formatter};
 use crate::types::gregtech_recipe::GregtechRecipe;
 use crate::types::ingredients::item::{Fluid, Item};
@@ -57,7 +56,7 @@ impl RecipeStats {
 }
 
 impl Display for RecipeStats {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let item_inputs = self.total_input_items.iter()
             .map(|item| format!("{}", item))
             .collect::<Vec<String>>()

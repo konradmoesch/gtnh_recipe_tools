@@ -1,0 +1,5 @@
+[workspace]
+
+members = [
+    "gtnh-recipe-calculator", "gtnh-recipe-lib",
+]

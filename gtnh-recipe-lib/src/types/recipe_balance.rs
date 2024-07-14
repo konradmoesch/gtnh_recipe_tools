@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fmt;
 use std::fmt::{Display, Formatter};
 use crate::types::gregtech_recipe::GregtechRecipe;
 use crate::types::ingredients::item::{Fluid, Item};
