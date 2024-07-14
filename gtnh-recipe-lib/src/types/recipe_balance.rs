@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use crate::types::gregtech_recipe::GregtechRecipe;
-use crate::types::ingredients::item::{Fluid, Item};
+use crate::types::ingredients::item::Item;
+use crate::types::ingredients::fluid::Fluid;
 
 pub struct RecipeBalance {
     pub input_items: Vec<Item>,

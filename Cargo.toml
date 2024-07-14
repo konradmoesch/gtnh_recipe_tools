@@ -3,3 +3,4 @@
 members = [
     "gtnh-recipe-calculator", "gtnh-recipe-lib",
 ]
+resolver = "2"

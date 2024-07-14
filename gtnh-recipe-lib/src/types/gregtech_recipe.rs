@@ -1,6 +1,7 @@
 use std::fmt::{Display, Formatter};
 use serde::{Deserialize, Serialize};
-use crate::types::ingredients::item::{Fluid, Item};
+use crate::types::ingredients::item::Item;
+use crate::types::ingredients::fluid::Fluid;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct GregtechRecipe {

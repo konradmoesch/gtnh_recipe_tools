@@ -6,7 +6,6 @@ use gtnh_recipe_lib::types::recipe_balance::RecipeBalance;
 use gtnh_recipe_lib::types::recipe_stats::RecipeStats;
 
 fn main() {
-    println!("Hello, world!");
     let mut file = File::open("./recipes_2.json").unwrap();
     let mut file_str = String::new();
     file.read_to_string(&mut file_str).expect("unable to read file to string");
@@ -57,6 +56,7 @@ fn main() {
     let balance = RecipeBalance::new(no2_to_nitric_acid_recipes.first().unwrap(), no_to_no2_recipe.first().unwrap());
     println!("Resulting balance: \n{}", balance);
 
-    let stats = RecipeStats::new(no2_to_nitric_acid_recipes.first().unwrap(), no_to_no2_recipe.first().unwrap());
+    let both_recipes =  [no2_to_nitric_acid_recipes.first().unwrap().clone(), no_to_no2_recipe.first().unwrap().clone()];
+    let stats = RecipeStats::new(both_recipes.into_vec());
     println!("Total stats: \n{}", stats);
 }
