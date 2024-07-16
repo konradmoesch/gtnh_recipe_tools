@@ -1,6 +1,14 @@
 [workspace]
 
 members = [
-    "gtnh-recipe-calculator", "gtnh-recipe-lib",
+    "gtnh-recipe-calculator", "gtnh-recipe-lib", "gtnh-recipe-viewer",
 ]
 resolver = "2"
+
+
+[profile.release.package."gtnh-recipe-viewer"]
+opt-level = 2 # fast and small wasm
+
+# Optimize all dependencies even in debug builds:
+[profile.dev.package."*"]
+opt-level = 2

@@ -1,6 +1,5 @@
 use crate::types::gregtech_machine::GregtechMachine;
 use crate::types::gregtech_recipe::GregtechRecipe;
-use crate::types::ingredients::item::Item;
 use serde::{Deserialize, Serialize};
 use strsim::jaro_winkler;
 
