@@ -57,6 +57,6 @@ fn main() {
     println!("Resulting balance: \n{}", balance);
 
     let both_recipes =  [no2_to_nitric_acid_recipes.first().unwrap().clone(), no_to_no2_recipe.first().unwrap().clone()];
-    let stats = RecipeStats::new(both_recipes.into_vec());
+    let stats = RecipeStats::new(both_recipes.to_vec());
     println!("Total stats: \n{}", stats);
 }

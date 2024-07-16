@@ -20,7 +20,7 @@ impl Item {
         }
     }
     pub fn get_name(&self) -> String {
-        let name = self.localized_name.clone().unwrap_or(self.unlocalized_name.clone().unwrap());
+        let name = self.localized_name.clone().unwrap_or(self.unlocalized_name.clone().unwrap_or("ERROR_NAME_NOT_FOUND".to_string()));
         name
     }
 }
