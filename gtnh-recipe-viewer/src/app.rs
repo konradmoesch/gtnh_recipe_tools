@@ -1,4 +1,5 @@
 use egui::Color32;
+use egui_extras::{Size, StripBuilder};
 use std::path::PathBuf;
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -16,6 +17,8 @@ pub struct GtnhRecipeViewerApp {
         String,
         gtnh_recipe_lib::types::gregtech_recipe::GregtechRecipe,
     )>,
+    #[serde(skip)]
+    selection: std::collections::HashSet<usize>,
 }
 
 impl Default for GtnhRecipeViewerApp {
@@ -26,6 +29,7 @@ impl Default for GtnhRecipeViewerApp {
             filename: None,
             recipes_json: None,
             search_results: vec![],
+            selection: Default::default(),
         }
     }
 }
@@ -45,6 +49,49 @@ impl GtnhRecipeViewerApp {
         Default::default()
     }
 
+    fn search(&mut self) {
+        if let Some(recipes) = &self.recipes_json {
+            //println!("searching...");
+            self.search_results = recipes.search(&self.label);
+            //dbg!(&self.search_results);
+        }
+    }
+
+    fn details_windows(&mut self, ui: &mut egui::Ui) {
+        for selection in &self.selection {
+            let recipe = self.search_results.iter().nth(*selection).unwrap();
+            ui.push_id(*selection, |ui| {
+                egui::Window::new(format!("Recipe Details (#{})", selection))
+                    .default_width(400.0)
+                    .show(ui.ctx(), |ui| {
+                        ui.heading(format!("{}", recipe.0));
+                        ui.label(format!("{}s, {}EU/t", recipe.1.duration, recipe.1.eut));
+                        ui.heading("Item Inputs:");
+                        for item in &recipe.1.item_inputs {
+                            ui.label(format!("{}", item));
+                        }
+                        ui.heading("Item Outputs:");
+                        for item in &recipe.1.item_outputs {
+                            ui.label(format!("{}", item));
+                        }
+
+                        ui.heading("Fluid Inputs:");
+                        for fluid in &recipe.1.fluid_inputs {
+                            ui.label(format!("{}", fluid));
+                        }
+                        ui.heading("Fluid Outputs:");
+                        for fluid in &recipe.1.fluid_outputs {
+                            ui.label(format!("{}", fluid));
+                        }
+
+                        ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+                            ui.small(format!("{}", recipe.1));
+                        });
+                    });
+            });
+        }
+    }
+
     fn table_ui(&mut self, ui: &mut egui::Ui, reset: bool) {
         use egui_extras::{Column, TableBuilder};
 
@@ -59,11 +106,11 @@ impl GtnhRecipeViewerApp {
             .resizable(true)
             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
             .column(Column::auto())
-            .column(Column::remainder())
-            .column(Column::remainder())
-            .column(Column::remainder())
-            .column(Column::remainder())
-            .column(Column::remainder())
+            .column(Column::remainder().clip(true))
+            .column(Column::remainder().clip(true))
+            .column(Column::remainder().clip(true))
+            .column(Column::remainder().clip(true))
+            .column(Column::remainder().clip(true))
             .min_scrolled_height(0.0)
             .max_scroll_height(available_height);
 
@@ -95,13 +142,11 @@ impl GtnhRecipeViewerApp {
                 });
             })
             .body(|mut body| {
-                let search_results = &self.search_results;
-
-                body.rows(text_height, search_results.len(), |mut row| {
+                body.rows(text_height, self.search_results.len(), |mut row| {
                     let row_index = row.index();
-                    let search_result = search_results.iter().nth(row_index).unwrap();
+                    let search_result = self.search_results.iter().nth(row_index).unwrap();
 
-                    //row.set_selected(self.selection.contains(&row_index));
+                    row.set_selected(self.selection.contains(&row_index));
 
                     row.col(|ui| {
                         ui.label(row_index.to_string());
@@ -154,12 +199,12 @@ impl GtnhRecipeViewerApp {
                         );
                     });
 
-                    //self.toggle_row_selection(row_index, &row.response());
+                    self.toggle_row_selection(row_index, &row.response());
                 });
             });
     }
 
-    /*fn toggle_row_selection(&mut self, row_index: usize, row_response: &egui::Response) {
+    fn toggle_row_selection(&mut self, row_index: usize, row_response: &egui::Response) {
         if row_response.clicked() {
             if self.selection.contains(&row_index) {
                 self.selection.remove(&row_index);
@@ -167,7 +212,7 @@ impl GtnhRecipeViewerApp {
                 self.selection.insert(row_index);
             }
         }
-    }*/
+    }
 }
 
 impl eframe::App for GtnhRecipeViewerApp {
@@ -224,48 +269,65 @@ impl eframe::App for GtnhRecipeViewerApp {
 
             ui.horizontal(|ui| {
                 ui.label("Search: ");
-                ui.text_edit_singleline(&mut self.label);
+                let textedit_response = ui.text_edit_singleline(&mut self.label);
+                if textedit_response.lost_focus() {
+                    textedit_response.ctx.input(|i| {
+                        if i.key_pressed(egui::Key::Enter) {
+                            self.search();
+                        }
+                    });
+                }
             });
 
             if ui.button("Search").clicked() {
                 //search recipes
-                if let Some(recipes) = &self.recipes_json {
-                    //println!("searching...");
-                    self.search_results = recipes.search(&self.label);
-                    //dbg!(&self.search_results);
-                }
+                self.search();
             }
 
             ui.separator();
 
-            // Results table
-            if !&self.search_results.is_empty() {
-                self.table_ui(ui, false);
-            } else {
-                ui.label("Search something!");
-            }
+            StripBuilder::new(ui)
+                .size(Size::remainder().at_least(100.0)) // for the table
+                .size(Size::exact(50.0)) // for the source code link
+                .vertical(|mut strip| {
+                    strip.cell(|ui| {
+                        // Results table
+                        if !&self.search_results.is_empty() {
+                            egui::ScrollArea::horizontal().show(ui, |ui| {
+                                self.table_ui(ui, false);
+                            });
+                        } else {
+                            ui.label("Search something!");
+                        }
 
-            ui.separator();
+                        if !&self.selection.is_empty() {
+                            self.details_windows(ui);
+                        }
 
-            if let Some(recipes) = &self.recipes_json {
-                ui.label(format!(
-                    "Total recipes loaded: {}, search results: {}",
-                    recipes.get_recipe_count(),
-                    self.search_results.len()
-                ));
-            } else {
-                ui.colored_label(Color32::RED, "No recipes loaded!");
-            }
+                        ui.separator();
 
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                powered_by_egui_and_eframe(ui);
+                        if let Some(recipes) = &self.recipes_json {
+                            ui.label(format!(
+                                "Total recipes loaded: {}, search results: {}",
+                                recipes.get_recipe_count(),
+                                self.search_results.len()
+                            ));
+                        } else {
+                            ui.colored_label(Color32::RED, "No recipes loaded!");
+                        }
+                    });
+                    strip.cell(|ui| {
+                        ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+                            powered_by_egui_and_eframe(ui);
 
-                ui.add(egui::github_link_file!(
-                    "https://github.com/konradmoesch/gtnh_recipe_calculator/blob/main/",
-                    "Source code."
-                ));
-                egui::warn_if_debug_build(ui);
-            });
+                            ui.add(egui::github_link_file!(
+                                "https://github.com/konradmoesch/gtnh_recipe_calculator/blob/main/",
+                                "Source code."
+                            ));
+                            egui::warn_if_debug_build(ui);
+                        });
+                    });
+                });
         });
     }
 
