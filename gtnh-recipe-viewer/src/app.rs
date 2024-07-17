@@ -48,6 +48,11 @@ impl GtnhRecipeViewerApp {
     fn table_ui(&mut self, ui: &mut egui::Ui, reset: bool) {
         use egui_extras::{Column, TableBuilder};
 
+        let text_height = egui::TextStyle::Body
+            .resolve(ui.style())
+            .size
+            .max(ui.spacing().interact_size.y);
+
         let available_height = ui.available_height();
         let mut table = TableBuilder::new(ui)
             .striped(true)
@@ -91,65 +96,66 @@ impl GtnhRecipeViewerApp {
             })
             .body(|mut body| {
                 let search_results = &self.search_results;
-                for row_index in 0..search_results.len() {
+
+                body.rows(text_height, search_results.len(), |mut row| {
+                    let row_index = row.index();
                     let search_result = search_results.iter().nth(row_index).unwrap();
-                    body.row(18.0, |mut row| {
-                        //row.set_selected(self.selection.contains(&row_index));
 
-                        row.col(|ui| {
-                            ui.label(row_index.to_string());
-                        });
-                        row.col(|ui| {
-                            ui.label(format!("{}", search_result.0));
-                        });
-                        row.col(|ui| {
-                            ui.label(
-                                search_result
-                                    .1
-                                    .item_inputs
-                                    .iter()
-                                    .map(|item| format!("{}", item))
-                                    .collect::<Vec<String>>()
-                                    .join(" + "),
-                            );
-                        });
-                        row.col(|ui| {
-                            ui.label(
-                                search_result
-                                    .1
-                                    .fluid_inputs
-                                    .iter()
-                                    .map(|fluid| format!("{}", fluid))
-                                    .collect::<Vec<String>>()
-                                    .join(" + "),
-                            );
-                        });
-                        row.col(|ui| {
-                            ui.label(
-                                search_result
-                                    .1
-                                    .item_outputs
-                                    .iter()
-                                    .map(|item| format!("{}", item))
-                                    .collect::<Vec<String>>()
-                                    .join(" + "),
-                            );
-                        });
-                        row.col(|ui| {
-                            ui.label(
-                                search_result
-                                    .1
-                                    .fluid_outputs
-                                    .iter()
-                                    .map(|fluid| format!("{}", fluid))
-                                    .collect::<Vec<String>>()
-                                    .join(" + "),
-                            );
-                        });
+                    //row.set_selected(self.selection.contains(&row_index));
 
-                        //self.toggle_row_selection(row_index, &row.response());
+                    row.col(|ui| {
+                        ui.label(row_index.to_string());
                     });
-                }
+                    row.col(|ui| {
+                        ui.label(format!("{}", search_result.0));
+                    });
+                    row.col(|ui| {
+                        ui.label(
+                            search_result
+                                .1
+                                .item_inputs
+                                .iter()
+                                .map(|item| format!("{}", item))
+                                .collect::<Vec<String>>()
+                                .join(" + "),
+                        );
+                    });
+                    row.col(|ui| {
+                        ui.label(
+                            search_result
+                                .1
+                                .fluid_inputs
+                                .iter()
+                                .map(|fluid| format!("{}", fluid))
+                                .collect::<Vec<String>>()
+                                .join(" + "),
+                        );
+                    });
+                    row.col(|ui| {
+                        ui.label(
+                            search_result
+                                .1
+                                .item_outputs
+                                .iter()
+                                .map(|item| format!("{}", item))
+                                .collect::<Vec<String>>()
+                                .join(" + "),
+                        );
+                    });
+                    row.col(|ui| {
+                        ui.label(
+                            search_result
+                                .1
+                                .fluid_outputs
+                                .iter()
+                                .map(|fluid| format!("{}", fluid))
+                                .collect::<Vec<String>>()
+                                .join(" + "),
+                        );
+                    });
+
+                    //self.toggle_row_selection(row_index, &row.response());
+                });
             });
     }
 
