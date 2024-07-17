@@ -1,6 +1,14 @@
-use egui::Color32;
+use egui::util::hash;
+use egui::{Color32, Id};
 use egui_extras::{Size, StripBuilder};
 use std::path::PathBuf;
+use egui::ahash::HashMap;
+
+#[derive(Hash, Eq, PartialEq)]
+struct RecipeAndMachine {
+    machine_name: String,
+    recipe: gtnh_recipe_lib::types::gregtech_recipe::GregtechRecipe,
+}
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -18,7 +26,9 @@ pub struct GtnhRecipeViewerApp {
         gtnh_recipe_lib::types::gregtech_recipe::GregtechRecipe,
     )>,
     #[serde(skip)]
-    selection: std::collections::HashSet<usize>,
+    selection: std::collections::HashSet<RecipeAndMachine>,
+    #[serde(skip)]
+    opened_windows: std::collections::HashMap<String, bool>,
 }
 
 impl Default for GtnhRecipeViewerApp {
@@ -30,6 +40,7 @@ impl Default for GtnhRecipeViewerApp {
             recipes_json: None,
             search_results: vec![],
             selection: Default::default(),
+            opened_windows: Default::default(),
         }
     }
 }
@@ -51,41 +62,45 @@ impl GtnhRecipeViewerApp {
 
     fn search(&mut self) {
         if let Some(recipes) = &self.recipes_json {
-            //println!("searching...");
+            //debug!("searching...");
             self.search_results = recipes.search(&self.label);
-            //dbg!(&self.search_results);
         }
     }
 
     fn details_windows(&mut self, ui: &mut egui::Ui) {
-        for selection in &self.selection {
-            let recipe = self.search_results.iter().nth(*selection).unwrap();
-            ui.push_id(*selection, |ui| {
-                egui::Window::new(format!("Recipe Details (#{})", selection))
+        for mut selection in &self.selection {
+            let recipe = &selection.recipe;
+            let recipe_hash = hash(format!("{}", recipe));
+            let hash_str = recipe_hash.to_string();
+
+            ui.push_id(hash_str.clone(), |ui| {
+                egui::Window::new("Recipe Details")
                     .default_width(400.0)
+                    .id(Id::from(hash_str.clone()))
+                    .open(self.opened_windows.get_mut(&hash_str).unwrap())
                     .show(ui.ctx(), |ui| {
-                        ui.heading(format!("{}", recipe.0));
-                        ui.label(format!("{}s, {}EU/t", recipe.1.duration, recipe.1.eut));
+                        ui.heading(format!("{}", selection.machine_name));
+                        ui.label(format!("{}s, {}EU/t", recipe.duration, recipe.eut));
                         ui.heading("Item Inputs:");
-                        for item in &recipe.1.item_inputs {
+                        for item in &recipe.item_inputs {
                             ui.label(format!("{}", item));
                         }
                         ui.heading("Item Outputs:");
-                        for item in &recipe.1.item_outputs {
+                        for item in &recipe.item_outputs {
                             ui.label(format!("{}", item));
                         }
 
                         ui.heading("Fluid Inputs:");
-                        for fluid in &recipe.1.fluid_inputs {
+                        for fluid in &recipe.fluid_inputs {
                             ui.label(format!("{}", fluid));
                         }
                         ui.heading("Fluid Outputs:");
-                        for fluid in &recipe.1.fluid_outputs {
+                        for fluid in &recipe.fluid_outputs {
                             ui.label(format!("{}", fluid));
                         }
 
                         ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                            ui.small(format!("{}", recipe.1));
+                            ui.small(format!("{}", recipe));
                         });
                     });
             });
@@ -146,7 +161,20 @@ impl GtnhRecipeViewerApp {
                     let row_index = row.index();
                     let search_result = self.search_results.iter().nth(row_index).unwrap();
 
-                    row.set_selected(self.selection.contains(&row_index));
+                    let recipe_and_machine = RecipeAndMachine {
+                        machine_name: search_result.0.clone(),
+                        recipe: search_result.1.clone(),
+                    };
+
+                    let recipe_hash = hash(format!("{}", recipe_and_machine.recipe));
+                    let hash_str = recipe_hash.to_string();
+                    if let Some(open) = self.opened_windows.get(&hash_str) {
+                        if *open == false {
+                            self.selection.remove(&recipe_and_machine);
+                        }
+                    }
+
+                    row.set_selected(self.selection.contains(&recipe_and_machine));
 
                     row.col(|ui| {
                         ui.label(row_index.to_string());
@@ -206,10 +234,19 @@ impl GtnhRecipeViewerApp {
 
     fn toggle_row_selection(&mut self, row_index: usize, row_response: &egui::Response) {
         if row_response.clicked() {
-            if self.selection.contains(&row_index) {
-                self.selection.remove(&row_index);
+            let search_result = self.search_results.iter().nth(row_index).unwrap();
+            let recipe_and_machine = RecipeAndMachine {
+                recipe: search_result.1.clone(),
+                machine_name: search_result.0.clone(),
+            };
+            let recipe_hash = hash(format!("{}", recipe_and_machine.recipe));
+            let hash_str = recipe_hash.to_string();
+            if self.selection.contains(&recipe_and_machine) {
+                self.selection.remove(&recipe_and_machine);
+                self.opened_windows.remove(&hash_str);
             } else {
-                self.selection.insert(row_index);
+                self.selection.insert(recipe_and_machine);
+                self.opened_windows.insert(hash_str, true);
             }
         }
     }

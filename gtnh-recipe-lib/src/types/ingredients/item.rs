@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Item {
     #[serde(rename = "a")]
     pub amount: usize,

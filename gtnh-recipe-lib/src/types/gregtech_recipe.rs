@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::types::ingredients::item::Item;
 use crate::types::ingredients::fluid::Fluid;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, Hash, PartialEq)]
 pub struct GregtechRecipe {
     #[serde(rename = "en")]
     pub enabled: bool,
