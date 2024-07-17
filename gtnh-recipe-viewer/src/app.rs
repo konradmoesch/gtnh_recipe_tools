@@ -1,8 +1,14 @@
+use std::cell::Cell;
+use std::future::Future;
+use std::sync::mpsc::{channel, Receiver, Sender};
 use egui::util::hash;
 use egui::{Color32, Id};
 use egui_extras::{Size, StripBuilder};
 use std::path::PathBuf;
+use std::rc::Rc;
+use std::{panic, thread};
 use egui::ahash::HashMap;
+use log::{debug, error};
 
 #[derive(Hash, Eq, PartialEq)]
 struct RecipeAndMachine {
@@ -29,6 +35,8 @@ pub struct GtnhRecipeViewerApp {
     selection: std::collections::HashSet<RecipeAndMachine>,
     #[serde(skip)]
     opened_windows: std::collections::HashMap<String, bool>,
+    #[serde(skip)]
+    file_channel: (Sender<Vec<u8>>, Receiver<Vec<u8>>),
 }
 
 impl Default for GtnhRecipeViewerApp {
@@ -41,6 +49,7 @@ impl Default for GtnhRecipeViewerApp {
             search_results: vec![],
             selection: Default::default(),
             opened_windows: Default::default(),
+            file_channel: channel(),
         }
     }
 }
@@ -68,7 +77,7 @@ impl GtnhRecipeViewerApp {
     }
 
     fn details_windows(&mut self, ui: &mut egui::Ui) {
-        for mut selection in &self.selection {
+        for selection in &self.selection {
             let recipe = &selection.recipe;
             let recipe_hash = hash(format!("{}", recipe));
             let hash_str = recipe_hash.to_string();
@@ -250,6 +259,23 @@ impl GtnhRecipeViewerApp {
             }
         }
     }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn open_file(&mut self) {
+        let path = std::env::current_dir().unwrap();
+
+        let res = rfd::FileDialog::new()
+            .set_title("Select recipes.json please")
+            .add_filter("json", &["json", "json"])
+            .set_directory(&path)
+            .pick_file();
+
+        debug!("The user choose: {:#?}", res);
+        self.filename = res;
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn open_file(&mut self) {}
 }
 
 impl eframe::App for GtnhRecipeViewerApp {
@@ -258,22 +284,17 @@ impl eframe::App for GtnhRecipeViewerApp {
         // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
 
-        if self.filename == None {
-            let path = std::env::current_dir().unwrap();
-
-            let res = rfd::FileDialog::new()
-                .set_title("Select recipes.json please")
-                .add_filter("json", &["json", "json"])
-                .set_directory(&path)
-                .pick_file();
-
-            println!("The user choose: {:#?}", res);
-            self.filename = res;
+        if self.filename == None && !cfg!(target_arch = "wasm32") {
+            self.open_file();
         }
 
         if let None = self.recipes_json {
             if let Some(path) = &self.filename {
                 self.recipes_json = Some(gtnh_recipe_lib::load_file(path));
+            } else {
+                if let Ok(text) = self.file_channel.1.try_recv() {
+                    self.recipes_json = Some(gtnh_recipe_lib::load_bytes(text));
+                }
             }
         }
 
@@ -294,6 +315,21 @@ impl eframe::App for GtnhRecipeViewerApp {
                         }
                     });
                     ui.add_space(16.0);
+                } else {
+                    if ui.button("Open").clicked() {
+                        self.recipes_json = None;
+                        let sender = self.file_channel.0.clone();
+                        let task = rfd::AsyncFileDialog::new().pick_file();
+                        let ctx = ui.ctx().clone();
+                        execute(async move {
+                            let file = task.await;
+                            if let Some(file) = file {
+                                let text = file.read().await;
+                                let _ = sender.send(text);
+                                ctx.request_repaint();
+                            }
+                        });
+                    }
                 }
 
                 egui::widgets::global_dark_light_mode_buttons(ui);
@@ -386,4 +422,14 @@ fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
         );
         ui.label(".");
     });
+}
+#[cfg(not(target_arch = "wasm32"))]
+fn execute<F: Future<Output = ()> + Send + 'static>(f: F) {
+    // this is stupid... use any executor of your choice instead
+    std::thread::spawn(move || futures::executor::block_on(f));
+}
+
+#[cfg(target_arch = "wasm32")]
+fn execute<F: Future<Output = ()> + 'static>(f: F) {
+    wasm_bindgen_futures::spawn_local(f);
 }

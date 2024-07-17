@@ -13,6 +13,11 @@ pub fn load_file(path: &PathBuf) -> types::json::JsonFormat {
     deserialized
 }
 
+pub fn load_bytes(bytes: Vec<u8>) -> types::json::JsonFormat {
+    let deserialized: types::json::JsonFormat = serde_json::from_slice(bytes.as_slice()).unwrap();
+    deserialized
+}
+
 pub fn add(left: usize, right: usize) -> usize {
     left + right
 }
