@@ -260,22 +260,22 @@ impl GtnhRecipeViewerApp {
         }
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
-    fn open_file(&mut self) {
-        let path = std::env::current_dir().unwrap();
-
-        let res = rfd::FileDialog::new()
+    fn open_file(&mut self, ctx: &egui::Context) {
+        let sender = self.file_channel.0.clone();
+        let task = rfd::AsyncFileDialog::new()
             .set_title("Select recipes.json please")
             .add_filter("json", &["json", "json"])
-            .set_directory(&path)
             .pick_file();
-
-        debug!("The user choose: {:#?}", res);
-        self.filename = res;
+        let ctx = ctx.clone();
+        execute(async move {
+            let file = task.await;
+            if let Some(file) = file {
+                let text = file.read().await;
+                let _ = sender.send(text);
+                ctx.request_repaint();
+            }
+        });
     }
-
-    #[cfg(target_arch = "wasm32")]
-    fn open_file(&mut self) {}
 }
 
 impl eframe::App for GtnhRecipeViewerApp {
@@ -283,10 +283,6 @@ impl eframe::App for GtnhRecipeViewerApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
-
-        if self.filename == None && !cfg!(target_arch = "wasm32") {
-            self.open_file();
-        }
 
         if let None = self.recipes_json {
             if let Some(path) = &self.filename {
@@ -309,27 +305,13 @@ impl eframe::App for GtnhRecipeViewerApp {
                         if ui.button("Open new file").clicked() {
                             self.filename = None;
                             self.recipes_json = None;
+                            self.open_file(ctx);
                         }
                         if ui.button("Quit").clicked() {
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                         }
                     });
                     ui.add_space(16.0);
-                } else {
-                    if ui.button("Open").clicked() {
-                        self.recipes_json = None;
-                        let sender = self.file_channel.0.clone();
-                        let task = rfd::AsyncFileDialog::new().pick_file();
-                        let ctx = ui.ctx().clone();
-                        execute(async move {
-                            let file = task.await;
-                            if let Some(file) = file {
-                                let text = file.read().await;
-                                let _ = sender.send(text);
-                                ctx.request_repaint();
-                            }
-                        });
-                    }
                 }
 
                 egui::widgets::global_dark_light_mode_buttons(ui);
@@ -340,67 +322,84 @@ impl eframe::App for GtnhRecipeViewerApp {
             // The central panel the region left after adding TopPanel's and SidePanel's
             ui.heading("GTNH recipe viewer");
 
-            ui.horizontal(|ui| {
-                ui.label("Search: ");
-                let textedit_response = ui.text_edit_singleline(&mut self.label);
-                if textedit_response.lost_focus() {
-                    textedit_response.ctx.input(|i| {
-                        if i.key_pressed(egui::Key::Enter) {
-                            self.search();
-                        }
-                    });
+
+            if self.recipes_json.is_none() {
+                if ui.button("Open recipes.json").clicked() {
+                    self.open_file(ctx);
                 }
-            });
 
-            if ui.button("Search").clicked() {
-                //search recipes
-                self.search();
-            }
+                ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+                    powered_by_egui_and_eframe(ui);
 
-            ui.separator();
-
-            StripBuilder::new(ui)
-                .size(Size::remainder().at_least(100.0)) // for the table
-                .size(Size::exact(50.0)) // for the source code link
-                .vertical(|mut strip| {
-                    strip.cell(|ui| {
-                        // Results table
-                        if !&self.search_results.is_empty() {
-                            egui::ScrollArea::horizontal().show(ui, |ui| {
-                                self.table_ui(ui, false);
-                            });
-                        } else {
-                            ui.label("Search something!");
-                        }
-
-                        if !&self.selection.is_empty() {
-                            self.details_windows(ui);
-                        }
-
-                        ui.separator();
-
-                        if let Some(recipes) = &self.recipes_json {
-                            ui.label(format!(
-                                "Total recipes loaded: {}, search results: {}",
-                                recipes.get_recipe_count(),
-                                self.search_results.len()
-                            ));
-                        } else {
-                            ui.colored_label(Color32::RED, "No recipes loaded!");
-                        }
-                    });
-                    strip.cell(|ui| {
-                        ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                            powered_by_egui_and_eframe(ui);
-
-                            ui.add(egui::github_link_file!(
+                    ui.add(egui::github_link_file!(
                                 "https://github.com/konradmoesch/gtnh_recipe_calculator/blob/main/",
                                 "Source code."
                             ));
-                            egui::warn_if_debug_build(ui);
+                    egui::warn_if_debug_build(ui);
+                });
+            } else {
+                ui.horizontal(|ui| {
+                    ui.label("Search: ");
+                    let textedit_response = ui.text_edit_singleline(&mut self.label);
+                    if textedit_response.lost_focus() {
+                        textedit_response.ctx.input(|i| {
+                            if i.key_pressed(egui::Key::Enter) {
+                                self.search();
+                            }
+                        });
+                    }
+                });
+
+                if ui.button("Search").clicked() {
+                    //search recipes
+                    self.search();
+                }
+
+                ui.separator();
+
+                StripBuilder::new(ui)
+                    .size(Size::remainder().at_least(100.0)) // for the table
+                    .size(Size::exact(50.0)) // for the source code link
+                    .vertical(|mut strip| {
+                        strip.cell(|ui| {
+                            // Results table
+                            if !&self.search_results.is_empty() {
+                                egui::ScrollArea::horizontal().show(ui, |ui| {
+                                    self.table_ui(ui, false);
+                                });
+                            } else {
+                                ui.label("Search something!");
+                            }
+
+                            if !&self.selection.is_empty() {
+                                self.details_windows(ui);
+                            }
+
+                            ui.separator();
+
+                            if let Some(recipes) = &self.recipes_json {
+                                ui.label(format!(
+                                    "Total recipes loaded: {}, search results: {}",
+                                    recipes.get_recipe_count(),
+                                    self.search_results.len()
+                                ));
+                            } else {
+                                ui.colored_label(Color32::RED, "No recipes loaded!");
+                            }
+                        });
+                        strip.cell(|ui| {
+                            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+                                powered_by_egui_and_eframe(ui);
+
+                                ui.add(egui::github_link_file!(
+                                "https://github.com/konradmoesch/gtnh_recipe_calculator/blob/main/",
+                                "Source code."
+                            ));
+                                egui::warn_if_debug_build(ui);
+                            });
                         });
                     });
-                });
+            }
         });
     }
 
