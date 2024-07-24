@@ -17,6 +17,9 @@ permissions:
 jobs:
   build-github-pages:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./gtnh-recipe-viewer
     steps:
       - uses: actions/checkout@v4 # repo checkout
       - name: Setup toolchain for wasm
